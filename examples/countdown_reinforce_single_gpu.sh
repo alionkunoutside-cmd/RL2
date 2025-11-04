@@ -1,6 +1,9 @@
 #!/bin/bash
 # 优化的单GPU训练脚本 (Tesla T4 15GB)
 
+# 禁用SGLang自定义kernel以兼容Tesla T4 (Compute Capability 7.5)
+export SGLANG_DISABLE_CUSTOM_KERNEL=1
+
 torchrun \
     --nproc_per_node=1 \
     -m RL2.trainer.ppo \

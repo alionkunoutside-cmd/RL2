@@ -1,6 +1,9 @@
 #!/bin/bash
 # 单GPU训练脚本 - Qwen2.5-0.5B 模型 (最小模型,显存占用最少)
 
+# 禁用SGLang自定义kernel以兼容Tesla T4 (Compute Capability 7.5)
+export SGLANG_DISABLE_CUSTOM_KERNEL=1
+
 torchrun \
     --nproc_per_node=1 \
     -m RL2.trainer.ppo \
