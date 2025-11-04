@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 from RL2.workers.fsdp import FSDPWorker
 from RL2.utils.sequences import count_total, slide_along_cp, gather_along_cp
-from RL2.utils.fsdp.context_parallelism import update_ring_attn_params
 from RL2.utils.functions import (
     compute_logps_and_entropy, aggregate_values
 )
@@ -31,11 +30,22 @@ class FSDPActor(FSDPWorker):
         else:
             model_cls = AutoModelForCausalLM
 
+        # Only use flash_attention_2 with ring attention when cp_size > 1
+        # For single GPU (cp_size=1), use sdpa which doesn't require flash-attn
+        if config.cp_size > 1:
+            attn_implementation = "flash_attention_2"
+            # Import ring attention utilities only when needed
+            from RL2.utils.fsdp.context_parallelism import update_ring_attn_params
+            self.update_ring_attn_params = update_ring_attn_params
+        else:
+            attn_implementation = "sdpa"  # Use PyTorch's scaled_dot_product_attention
+            self.update_ring_attn_params = None
+
         with self.init_weight_context():
             self.model = model_cls.from_pretrained(
                 config.model_name,
                 trust_remote_code=True,
-                attn_implementation="flash_attention_2"
+                attn_implementation=attn_implementation
             )
 
         self.prepare_model_optimizer()
@@ -47,10 +57,12 @@ class FSDPActor(FSDPWorker):
             self.device_mesh["cp"].get_group(),
             self.device_mesh["tp"].size()
         )
-        update_ring_attn_params(
-            self.device_mesh["cp"].get_group(),
-            cu_seqlens
-        )
+        # Only update ring attention params when using context parallelism
+        if self.update_ring_attn_params is not None:
+            self.update_ring_attn_params(
+                self.device_mesh["cp"].get_group(),
+                cu_seqlens
+            )
         logits = self.model(
             input_ids=minibatch["states"],
             position_ids=minibatch["position_ids"],
