@@ -13,8 +13,6 @@ torchrun \
     test_data.path=test@Chenmien/Countdown \
     actor.model_name=Qwen/Qwen2.5-3B-Instruct \
     actor.max_length_per_device=2048 \
-    actor.enable_gradient_checkpointing=true \
-    actor.offload_optimizer=true \
     rollout.server_args.mem_fraction_static=0.4 \
     rollout.train_sampling_params.max_new_tokens=512 \
     "rollout.train_sampling_params.stop=['</answer>']" \
